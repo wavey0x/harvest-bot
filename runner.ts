@@ -7,9 +7,14 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+
+const environment = process.env.ENVIRONMENT;
+const tgChat = process.env.TELEGRAM_CHANNEL_ID;
+const tgBot = process.env.HARVEST_COLLECTOR_BOT;
+const mins = process.env.MINUTES;
 let currentTime = Date.now();
-let mins = 15;
-let timeCheckPoint = currentTime - (1000*60*mins + 5000);
+let minutes = parseInt(mins);
+let timeCheckPoint = currentTime - (1000*60*minutes + 5000);
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
@@ -19,8 +24,7 @@ let discordSecret = process.env.DISCORD_SECRET;
 let discordUrl = `https://discord.com/api/webhooks/${discordSecret}`
 
 const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
-const tgChat = process.env.TELEGRAM_CHANNEL_ID;
-const tgBot = process.env.HARVEST_COLLECTOR_BOT;
+
 
 let helper = new web3.eth.Contract(strategiesHelperAbi, helper_address);
 
@@ -162,7 +166,7 @@ function formatTelegram(d: Harvest){
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
 
     d.transactionHash
-    return encodeURIComponent(message);
+    return message;
 }
 
 function checkIsKeeper(to){
@@ -236,10 +240,16 @@ async function getStrategies(){
         });
         for(let i=0;i<results.length;i++){
             let result = results[i];
-            let encoded_message = formatTelegram(result);
-            let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
             // Send to telegram
-            const res = await axios.post(url);
+            let message = formatTelegram(result);
+            if(environment=="PROD"){
+                let encoded_message = encodeURIComponent(message)
+                let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
+                const res = await axios.post(url);
+            }
+            else{
+                console.log(message)
+            }
 
         }
         console.log(results)
