@@ -219,7 +219,7 @@ async function getStrategies(){
                 result.transactionTo = String(to);
                 result.keeperTriggered = checkIsKeeper(String(to));
                 result.multisigTriggered = checkIsMultisig(String(to));
-                result.strategistTriggered = result.strategist == String(to);
+                result.strategistTriggered = s == String(to);
                 results.push(result);
                 console.log(discordUrl);
                 // request.open("POST", discordUrl);
