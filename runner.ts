@@ -5,7 +5,7 @@ const path = require('path');
 require('dotenv').config();
 
 let currentTime = Date.now();
-let oneHourAgo = currentTime - (1000*60*60*20);
+let oneHourAgo = currentTime - (1000*60*60);
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
