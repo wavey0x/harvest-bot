@@ -6,6 +6,7 @@
 - make sure you have ts-node installed with `npm install -g ts-node`
 
 ## Config
+- copy `example.env` and rename to `.env` 
 - set threshold for when to find harvests: 
     in `runner.ts` modify this line, replace X for number of hours to look back:
         `let oneHourAgo = currentTime - (1000*60*60*X);`
