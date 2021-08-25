@@ -2,6 +2,7 @@ import axios from 'axios';
 import {getReportsForStrategy} from './reports';
 const Web3 = require('web3');
 const commaNumber = require('comma-number');
+const request = require('request');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -13,6 +14,8 @@ let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.ma
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
 let tokenAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/token.json')));
 let helper_address = "0x5b4F3BE554a88Bd0f8d8769B9260be865ba03B4a"
+let discordSecret = process.env.DISCORD_SECRET;
+let discordUrl = `https://discord.com/api/webhooks/${discordSecret}`
 
 const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
 const tgChat = process.env.TELEGRAM_CHAT_ID;
@@ -130,12 +133,12 @@ function formatTelegram(d: Harvest){
 
 async function getStrategies(){
     let strats;
+    let results: Harvest[] = [];
     strats = await getAllStrategies();
     for(let idx=0;idx<strats.length;idx++){
         let s = strats[idx];
         let reports: any = await getReports(s);
         let strategyName;
-        let results = [];
         if(reports.length > 0){
             strategyName = await getStrategyName(s);
             let vaultAddress = await getVaultAddress(s);
@@ -145,9 +148,6 @@ async function getStrategies(){
             let tokenSymbol = await getTokenSymbol(tokenAddress);
             let result: Harvest = {};
             for(let i=0;i<reports.length;i++){
-                console.log(strategyName,s);
-                console.log(vaultName,vaultAddress);
-                console.log("Transaction Hash:",reports[i].transactionHash);
                 result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
                 result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
                 result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
@@ -158,17 +158,37 @@ async function getStrategies(){
                 result.decimals = parseInt(decimals);
                 result.tokenSymbol = String(tokenSymbol);
                 result.transactionHash = reports[i].transactionHash;
-                console.log(result);
+                results.push(result);
+                console.log(discordUrl);
+                // request.open("POST", discordUrl);
+                // request.setRequestHeader('Content-type', 'application/json');
+                var params = {
+                    username: "My Webhook Name",
+                    avatar_url: "",
+                    content: "The message to send"
+                }
+
                 
-                let encoded_message = formatTelegram(result);
-                console.log(encoded_message);
-                let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
-                const res = await axios.post(url);
-                console.log(res)
+                request.post(discordUrl,JSON.stringify(params));
+
             }
         }
-        
     }
+    if(results.length>0){
+        // Sort results by oldest to newist
+        results.sort(function(a: any,b: any){
+            return a.timestamp - b.timestamp;
+        });
+        for(let i=0;i<results.length;i++){
+            let result = results[i];
+            let encoded_message = formatTelegram(result);
+            let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
+            // Send to telegram
+            const res = await axios.post(url);
+        }
+        console.log(results)
+    }
+    
     return strats;
 }
 
