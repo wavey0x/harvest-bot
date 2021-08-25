@@ -1,6 +1,7 @@
 import axios from 'axios';
 import {getReportsForStrategy} from './reports';
 const Web3 = require('web3');
+const commaNumber = require('comma-number');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -120,7 +121,7 @@ function formatTelegram(d: Harvest){
     message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + "\n\n";
     let netProft = d.profit - d.loss;
     let precision = 4;
-    message += `💰 Net profit: ${netProft.toFixed(precision)} ${d.tokenSymbol}\n\n`;
+    message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol}\n\n`;
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
 
     d.transactionHash
