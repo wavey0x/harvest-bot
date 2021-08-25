@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {getReportsForStrategy} from './reports';
 const Web3 = require('web3');
 const fs = require('fs');
@@ -5,13 +6,16 @@ const path = require('path');
 require('dotenv').config();
 
 let currentTime = Date.now();
-let oneHourAgo = currentTime - (1000*60*60);
+let oneHourAgo = currentTime - (1000*60*60*20);
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
+let tokenAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/token.json')));
 let helper_address = "0x5b4F3BE554a88Bd0f8d8769B9260be865ba03B4a"
 
-const web3 = new Web3(new Web3.providers.HttpProvider(process.env.GETH_NODE));
+const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
+const tgChat = process.env.TELEGRAM_CHAT_ID;
+const tgBot = process.env.HARVEST_COLLECTOR_BOT;
 
 let helper = new web3.eth.Contract(strategiesHelperAbi, helper_address);
 
@@ -25,6 +29,7 @@ interface Harvest {
     strategyName?: string;
     transactionHash?: string;
     decimals?: number;
+    tokenSymbol?: string;
 }
 
 function getStrategyName(address){
@@ -63,6 +68,24 @@ function getVaultAddress(address){
     })
 }
 
+function getTokenAddress(address){
+    return new Promise((resolve) => {
+        let strategy = new web3.eth.Contract(strategyAbi, address);
+        strategy.methods.want().call().then(tokenAddress =>{
+            resolve(tokenAddress);
+        })
+    })
+}
+
+function getTokenSymbol(address){
+    return new Promise((resolve) => {
+        let token = new web3.eth.Contract(tokenAbi, address);
+        token.methods.symbol().call().then(symbol =>{
+            resolve(symbol);
+        })
+    })
+}
+
 function getReports(addr){
     return new Promise((resolve) => {
         let txns = [];
@@ -89,6 +112,22 @@ function getAllStrategies(){
     })
 }
 
+function formatTelegram(d: Harvest){
+    let message = "";
+    // let harvestEmoji = "u'\U0001F468' u'\u200D' u'\U0001F33E'"
+    let harvestEmoji = "👨‍🌾"
+    message += harvestEmoji;
+    message += ` [${d.vaultName}](https://etherscan.io/address/${d.vaultAddress}) -- [${d.strategyName}](https://etherscan.io/address/${d.strategyAddress})\n\n`;
+    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + "\n\n";
+    let netProft = d.profit - d.loss;
+    let precision = 4;
+    message += `💰 Net profit: ${netProft.toFixed(precision)} ${d.tokenSymbol}\n\n`;
+    message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
+
+    d.transactionHash
+    return encodeURIComponent(message);
+}
+
 async function getStrategies(){
     let strats;
     strats = await getAllStrategies();
@@ -102,6 +141,8 @@ async function getStrategies(){
             let vaultAddress = await getVaultAddress(s);
             let vaultName = await getVaultName(vaultAddress);
             let decimals: any = await getVaultDecimals(vaultAddress);
+            let tokenAddress = await getTokenAddress(s);
+            let tokenSymbol = await getTokenSymbol(tokenAddress);
             let result: Harvest = {};
             for(let i=0;i<reports.length;i++){
                 console.log(strategyName,s);
@@ -115,8 +156,15 @@ async function getStrategies(){
                 result.vaultAddress = String(vaultAddress);
                 result.vaultName = String(vaultName);
                 result.decimals = parseInt(decimals);
+                result.tokenSymbol = String(tokenSymbol);
                 result.transactionHash = reports[i].transactionHash;
                 console.log(result);
+                
+                let encoded_message = formatTelegram(result);
+                console.log(encoded_message);
+                let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
+                const res = await axios.post(url);
+                console.log(res)
             }
         }
         
