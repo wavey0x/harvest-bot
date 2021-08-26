@@ -121,7 +121,6 @@ function getReports(addr){
     return new Promise((resolve) => {
         let txns = [];
         getReportsForStrategy(addr).then((reports) => {
-            console.log("checking " + addr + "...");
             for(let i=0;i<reports.length;i++){
                 if(parseInt(reports[i].timestamp) > timeCheckPoint){//Date.now()){
                     // 1629786582
@@ -224,12 +223,17 @@ async function getStrategies(){
                 console.log(discordUrl);
                 // request.open("POST", discordUrl);
                 // request.setRequestHeader('Content-type', 'application/json');
-                var params = {
-                    username: "My Webhook Name",
-                    avatar_url: "",
-                    content: "The message to send"
+                
+                let message = formatTelegram(result);
+                let params = {
+                    content: "",
+                    embeds: [{
+                        "title":"New harvest",
+                        "description": message
+                    }]
                 }
-                request.post(discordUrl,JSON.stringify(params));
+                const res = await axios.post(discordUrl,params);
+                console.log(res)
             }
         }
     }
@@ -243,7 +247,7 @@ async function getStrategies(){
             // Send to telegram
             let message = formatTelegram(result);
             if(environment=="PROD"){
-                let encoded_message = encodeURIComponent(message)
+                let encoded_message = encodeURIComponent(message);
                 let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
                 const res = await axios.post(url);
             }
