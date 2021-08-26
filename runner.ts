@@ -232,8 +232,7 @@ async function getStrategies(){
                         "description": message
                     }]
                 }
-                const res = await axios.post(discordUrl,params);
-                console.log(res)
+                axios.post(discordUrl,params);
             }
         }
     }
