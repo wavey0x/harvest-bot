@@ -229,7 +229,7 @@ async function getStrategies(){
                     }]
                 }
                 if(environment=="PROD"){
-                    axios.post(discordUrl,params);
+                    const resp = await axios.post(discordUrl,params);
                 }
             }
         }
