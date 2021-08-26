@@ -220,10 +220,6 @@ async function getStrategies(){
                 result.multisigTriggered = checkIsMultisig(String(to));
                 result.strategistTriggered = s == String(to);
                 results.push(result);
-                console.log(discordUrl);
-                // request.open("POST", discordUrl);
-                // request.setRequestHeader('Content-type', 'application/json');
-                
                 let message = formatTelegram(result);
                 let params = {
                     content: "",
@@ -232,10 +228,13 @@ async function getStrategies(){
                         "description": message
                     }]
                 }
-                axios.post(discordUrl,params);
+                if(environment=="PROD"){
+                    axios.post(discordUrl,params);
+                }
             }
         }
     }
+    console.log(strats.length+" strategies found. "+results.length+" new harvests found in last "+minutes+" minutes since previous run.")
     if(results.length>0){
         // Sort results by oldest to newist
         results.sort(function(a: any,b: any){
@@ -255,7 +254,6 @@ async function getStrategies(){
             }
 
         }
-        console.log(results)
     }
     
     return strats;
