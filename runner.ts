@@ -158,7 +158,7 @@ function formatTelegram(d: Harvest){
     //message += harvestEmoji;
     message += byIndicator;
     message += ` [${d.vaultName}](https://etherscan.io/address/${d.vaultAddress})  --  [${d.strategyName}](https://etherscan.io/address/${d.strategyAddress})\n\n`;
-    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + "\n\n";
+    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + "UTC\n\n";
     let netProft = d.profit - d.loss;
     let precision = 4;
     message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol}\n\n`;
