@@ -19,15 +19,8 @@ let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
 let tokenAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/token.json')));
-let helper_address = "0x5b4F3BE554a88Bd0f8d8769B9260be865ba03B4a"
-let discordSecret = process.env.DISCORD_SECRET;
-let discordUrl = `https://discord.com/api/webhooks/${discordSecret}`;
-const yvboostStrategy = "0x2923a58c1831205c854dbea001809b194fdb3fa5"
 
 const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
-
-
-let helper = new web3.eth.Contract(strategiesHelperAbi, helper_address);
 
 interface Harvest {
     profit?: number;
@@ -123,7 +116,7 @@ function getReports(addr){
         let txns = [];
         getReportsForStrategy(addr).then((reports) => {
             for(let i=0;i<reports.length;i++){
-                if(parseInt(reports[i].timestamp) > timeCheckPoint){//Date.now()){
+                if(parseInt(reports[i].timestamp) > 0){// timeCheckPoint){//Date.now()){
                     // 1629786582
                     // 1627318302000
                     reports[i].strategyAddress = addr;
@@ -131,14 +124,6 @@ function getReports(addr){
                 }
             }
             resolve(txns);
-        })
-    })
-}
-
-function getAllStrategies(){
-    return new Promise((resolve) => {
-        helper.methods.assetsStrategiesAddresses().call().then(strats =>{
-            resolve(strats);
         })
     })
 }
@@ -159,7 +144,7 @@ function formatTelegram(d: Harvest){
     //message += harvestEmoji;
     message += byIndicator;
     message += ` [${d.vaultName}](https://etherscan.io/address/${d.vaultAddress})  --  [${d.strategyName}](https://etherscan.io/address/${d.strategyAddress})\n\n`;
-    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + " UTC\n\n";
+    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + "UTC\n\n";
     let netProft = d.profit - d.loss;
     let precision = 4;
     message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol}\n\n`;
@@ -186,13 +171,8 @@ function checkIsMultisig(to){
     return knownAddresses.includes(to);
 }
 
-async function getStrategies(){
-    let strats;
+async function getStrategies(strats: string[]){
     let results: Harvest[] = [];
-    strats = await getAllStrategies();
-    if(!strats.includes(yvboostStrategy)){
-        strats.push(yvboostStrategy);
-    }
     for(let idx=0;idx<strats.length;idx++){
         let s = strats[idx];
         let reports: any = await getReports(s);
@@ -225,43 +205,16 @@ async function getStrategies(){
                 result.strategistTriggered = s == String(to);
                 results.push(result);
                 let message = formatTelegram(result);
-                let params = {
-                    content: "",
-                    embeds: [{
-                        "title":"New harvest",
-                        "description": message
-                    }]
-                }
-                if(environment=="PROD"){
-                    const resp = await axios.post(discordUrl,params);
-                }
-            }
-        }
-    }
-    console.log(strats.length+" strategies found. "+results.length+" new harvests found in last "+minutes+" minutes since previous run.")
-    if(results.length>0){
-        // Sort results by oldest to newist
-        results.sort(function(a: any,b: any){
-            return a.timestamp - b.timestamp;
-        });
-        for(let i=0;i<results.length;i++){
-            let result = results[i];
-            // Send to telegram
-            let message = formatTelegram(result);
-            if(environment=="PROD"){
-                let encoded_message = encodeURIComponent(message);
-                let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
-                const res = await axios.post(url);
-            }
-            else{
                 console.log(message)
             }
-
         }
     }
-    
-    return strats;
 }
 
-getStrategies();
+
+
+
+
+let strategyId = "0x2923a58c1831205c854dbea001809b194fdb3fa5";
+getStrategies([strategyId]);
 
