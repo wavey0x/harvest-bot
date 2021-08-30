@@ -180,10 +180,11 @@ function formatTelegram(d: Harvest){
 
 function checkIsKeeper(to){
     let knownAddresses = [
-        "0x0a61c2146A7800bdC278833F21EBf56Cd660EE2a",// stealth relayer
-        "0xeE15010105b9BB564CFDfdc5cee676485092AEDd",// CrvStrategyKeep3rJob2
+        "0x0a61c2146A7800bdC278833F21EBf56Cd660EE2a", // stealth relayer
+        "0xeE15010105b9BB564CFDfdc5cee676485092AEDd", // CrvStrategyKeep3rJob2
         "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF", // V2 Keeper
-        "0xcc268041259904bb6ae2c84f9db2d976bceb43e5" // Block protection
+        "0xCC268041259904bB6ae2c84F9Db2D976BCEB43E5", // Block protection manual script
+        "0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6"  // yMech multisig
     ];
     return knownAddresses.includes(to);
 }
@@ -231,17 +232,6 @@ async function getStrategies(){
                 result.multisigTriggered = checkIsMultisig(String(to));
                 result.strategistTriggered = s == String(to);
                 results.push(result);
-                let message = formatTelegram(result);
-                let params = {
-                    content: "",
-                    embeds: [{
-                        "title":"New harvest",
-                        "description": message
-                    }]
-                }
-                if(environment=="PROD"){
-                    const resp = await axios.post(discordUrl,params);
-                }
             }
         }
     }
@@ -257,6 +247,14 @@ async function getStrategies(){
                 let encoded_message = encodeURIComponent(message);
                 let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
                 const res = await axios.post(url);
+                let params = {
+                    content: "",
+                    embeds: [{
+                        "title":"New harvest",
+                        "description": message
+                    }]
+                }
+                const resp = await axios.post(discordUrl,params);
             }
             else{
                 console.log(message)
