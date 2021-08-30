@@ -22,7 +22,7 @@ let tokenAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.ma
 let helper_address = "0x5b4F3BE554a88Bd0f8d8769B9260be865ba03B4a"
 let discordSecret = process.env.DISCORD_SECRET;
 let discordUrl = `https://discord.com/api/webhooks/${discordSecret}`;
-const yvboostStrategy = "0x2923a58c1831205c854dbea001809b194fdb3fa5"
+const yvboostStrategy: string = "0x2923a58c1831205c854dbea001809b194fdb3fa5";
 
 const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
 
@@ -135,10 +135,17 @@ function getReports(addr){
     })
 }
 
-function getAllStrategies(){
-    return new Promise((resolve) => {
+function getAllStrategies() {
+    return new Promise<string[]>((resolve) => {
         helper.methods.assetsStrategiesAddresses().call().then(strats =>{
-            resolve(strats);
+            let strategies: string[] = [];
+            for(let i=0;i<strats.length; i++){
+                strategies.push(strats[i])
+            }
+            if(!strategies.includes(yvboostStrategy)){
+                strategies.push(yvboostStrategy);
+            }
+            resolve(strategies as string[]);
         })
     })
 }
@@ -187,12 +194,8 @@ function checkIsMultisig(to){
 }
 
 async function getStrategies(){
-    let strats;
     let results: Harvest[] = [];
-    strats = await getAllStrategies();
-    if(!strats.includes(yvboostStrategy)){
-        strats.push(yvboostStrategy);
-    }
+    let strats: string[] = await getAllStrategies();
     for(let idx=0;idx<strats.length;idx++){
         let s = strats[idx];
         let reports: any = await getReports(s);
