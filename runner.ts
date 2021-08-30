@@ -2,6 +2,7 @@ import axios from 'axios';
 import {getReportsForStrategy} from './reports';
 const Web3 = require('web3');
 const commaNumber = require('comma-number');
+const _ = require('lodash');
 const request = require('request');
 const fs = require('fs');
 const path = require('path');
@@ -30,14 +31,15 @@ const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_NODE));
 let helper = new web3.eth.Contract(strategiesHelperAbi, helper_address);
 
 interface Harvest {
+    transactionHash?: string;
     profit?: number;
     loss?: number;
     timestamp?: Date;
+    rawTimestamp?: number;
     vaultAddress?: string;
     vaultName?: string;
     strategyAddress?: string;
     strategyName?: string;
-    transactionHash?: string;
     decimals?: number;
     strategist?: string;
     tokenSymbol?: string;
@@ -180,7 +182,8 @@ function checkIsKeeper(to){
     let knownAddresses = [
         "0x0a61c2146A7800bdC278833F21EBf56Cd660EE2a",// stealth relayer
         "0xeE15010105b9BB564CFDfdc5cee676485092AEDd",// CrvStrategyKeep3rJob2
-        "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF" // V2 Keeper
+        "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF", // V2 Keeper
+        "0xcc268041259904bb6ae2c84f9db2d976bceb43e5" // Block protection
     ];
     return knownAddresses.includes(to);
 }
@@ -208,10 +211,11 @@ async function getStrategies(){
             let decimals: any = await getVaultDecimals(vaultAddress);
             let tokenAddress = await getTokenAddress(s);
             let tokenSymbol = await getTokenSymbol(tokenAddress);
-            let result: Harvest = {};
             for(let i=0;i<reports.length;i++){
+                let result: Harvest = {};
                 result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
                 result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                result.rawTimestamp = reports[i].results.currentReport.timestamp;
                 result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
                 result.strategyAddress = s;
                 result.strategyName = strategyName;
@@ -244,9 +248,7 @@ async function getStrategies(){
     console.log(strats.length+" strategies found. "+results.length+" new harvests found in last "+minutes+" minutes since previous run.")
     if(results.length>0){
         // Sort results by oldest to newist
-        results.sort(function(a: any,b: any){
-            return a.timestamp - b.timestamp;
-        });
+        results = _.sortBy(results, ['rawTimestamp', 'transactionHash']);
         for(let i=0;i<results.length;i++){
             let result = results[i];
             // Send to telegram
