@@ -20,6 +20,7 @@ let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
 let tokenAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/token.json')));
+let oracleAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/oracle.json')));
 let helper_address = "0x5b4F3BE554a88Bd0f8d8769B9260be865ba03B4a"
 let discordSecret = process.env.DISCORD_SECRET;
 let discordUrl = `https://discord.com/api/webhooks/${discordSecret}`;
@@ -34,6 +35,8 @@ interface Harvest {
     transactionHash?: string;
     profit?: number;
     loss?: number;
+    netProfit?: number;
+    usdValue?: number;
     timestamp?: Date;
     rawTimestamp?: number;
     vaultAddress?: string;
@@ -54,6 +57,15 @@ function getStrategyName(address){
         let strategy = new web3.eth.Contract(strategyAbi, address);
         strategy.methods.name().call().then(name =>{
             resolve(name);
+        })
+    })
+}
+
+function getOraclePrice(token){
+    return new Promise<number>((resolve) => {
+        let oracle = new web3.eth.Contract(oracleAbi, "0x83d95e0D5f402511dB06817Aff3f9eA88224B030");
+        oracle.methods.getPriceUsdcRecommended(token).call().then(price =>{
+            resolve(price / 10**6);
         })
     })
 }
@@ -171,7 +183,7 @@ function formatTelegram(d: Harvest){
     message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + " UTC\n\n";
     let netProft = d.profit - d.loss;
     let precision = 4;
-    message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol}\n\n`;
+    message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol} ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
 
     d.transactionHash
@@ -212,10 +224,13 @@ async function getStrategies(){
             let decimals: any = await getVaultDecimals(vaultAddress);
             let tokenAddress = await getTokenAddress(s);
             let tokenSymbol = await getTokenSymbol(tokenAddress);
+            let oraclePrice: number = await getOraclePrice(tokenAddress);
             for(let i=0;i<reports.length;i++){
                 let result: Harvest = {};
                 result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
                 result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                result.netProfit = result.profit - result.loss;
+                result.usdValue = oraclePrice * result.netProfit;
                 result.rawTimestamp = reports[i].results.currentReport.timestamp;
                 result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
                 result.strategyAddress = s;
