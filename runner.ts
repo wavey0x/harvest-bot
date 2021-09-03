@@ -50,6 +50,12 @@ interface Harvest {
     keeperTriggered?: boolean;
     multisigTriggered?: boolean;
     strategistTriggered?: boolean;
+    txnCost?: number
+}
+
+interface TxnDetails {
+    to?: string;
+    transactionCost?: number;
 }
 
 function getStrategyName(address){
@@ -65,6 +71,16 @@ function getOraclePrice(token){
     return new Promise<number>((resolve) => {
         let oracle = new web3.eth.Contract(oracleAbi, "0x83d95e0D5f402511dB06817Aff3f9eA88224B030");
         oracle.methods.getPriceUsdcRecommended(token).call().then(price =>{
+            resolve(price / 10**6);
+        })
+    })
+}
+
+function getWethPrice(){
+    let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+    return new Promise<number>((resolve) => {
+        let oracle = new web3.eth.Contract(oracleAbi, "0x83d95e0D5f402511dB06817Aff3f9eA88224B030");
+        oracle.methods.getPriceUsdcRecommended(weth).call().then(price =>{
             resolve(price / 10**6);
         })
     })
@@ -124,10 +140,25 @@ function getTokenSymbol(address){
     })
 }
 
+function getTransactionReceipt(txhash){
+    return new Promise<number>((resolve) => {
+        web3.eth.getTransactionReceipt(txhash).then((tx)=>{
+            resolve(tx.gasUsed);
+        })
+    })
+}
+
 function getTransactionTo(txhash){
-    return new Promise((resolve) => {
+    return new Promise<TxnDetails>((resolve) => {
         web3.eth.getTransaction(txhash).then((tx)=>{
-            resolve(tx.to);
+            getTransactionReceipt(txhash).then(gasUsed =>{
+                let txnCost = tx.gasPrice * gasUsed;
+                let payload: TxnDetails = {
+                    to: tx.to,
+                    transactionCost: txnCost
+                }
+                resolve(payload);
+            })            
         })
     })
 }
@@ -165,6 +196,33 @@ function getAllStrategies() {
 }
 
 function formatTelegram(d: Harvest){
+    let byIndicator = "";
+    if(d.multisigTriggered){
+        byIndicator = "✍ ";
+    }
+    else if(d.strategistTriggered){
+        byIndicator = "🧠 ";
+    }
+    else if(d.keeperTriggered){
+        byIndicator = "🤖 ";
+    }
+    let message = "";
+    let harvestEmoji = "👨‍🌾"
+    //message += harvestEmoji;
+    message += byIndicator;
+    message += ` [${d.vaultName}](https://etherscan.io/address/${d.vaultAddress})  --  [${d.strategyName}](https://etherscan.io/address/${d.strategyAddress})\n\n`;
+    message += "📅 " + new Date(d.timestamp).toLocaleString('en-US', { timeZone: 'UTC' }) + " UTC\n\n";
+    let netProfit = d.profit - d.loss;
+    let precision = 4;
+    message += `💰 Net profit: ${commaNumber(netProfit.toFixed(precision))} ${d.tokenSymbol} ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
+    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}\n\n`; // ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
+    message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
+
+    d.transactionHash
+    return message;
+}
+
+function formatDiscord(d: Harvest){
     let byIndicator = "";
     if(d.multisigTriggered){
         byIndicator = "✍ ";
@@ -241,7 +299,10 @@ async function getStrategies(){
                 result.tokenSymbol = String(tokenSymbol);
                 result.transactionHash = reports[i].transactionHash;
                 result.strategist = String(strategist);
-                let to = await getTransactionTo(result.transactionHash);
+                let txnDetails: TxnDetails = await getTransactionTo(result.transactionHash);
+                let to = txnDetails.to;
+                let wethPrice = await getWethPrice();
+                result.txnCost = (txnDetails.transactionCost / 1e18) * wethPrice;
                 result.transactionTo = String(to);
                 result.keeperTriggered = checkIsKeeper(String(to));
                 result.multisigTriggered = checkIsMultisig(String(to));
@@ -257,22 +318,23 @@ async function getStrategies(){
         for(let i=0;i<results.length;i++){
             let result = results[i];
             // Send to telegram
-            let message = formatTelegram(result);
+            let messageTelegram = formatTelegram(result);
+            let messageDiscord = formatDiscord(result);
             if(environment=="PROD"){
-                let encoded_message = encodeURIComponent(message);
+                let encoded_message = encodeURIComponent(messageTelegram);
                 let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
                 const res = await axios.post(url);
                 let params = {
                     content: "",
                     embeds: [{
                         "title":"New harvest",
-                        "description": message
+                        "description": messageDiscord
                     }]
                 }
                 const resp = await axios.post(discordUrl,params);
             }
             else{
-                console.log(message)
+                console.log(messageTelegram)
             }
 
         }
