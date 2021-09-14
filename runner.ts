@@ -16,6 +16,7 @@ const mins = process.env.MINUTES;
 let currentTime = Date.now();
 let minutes = parseInt(mins);
 let timeCheckPoint = currentTime - (1000*60*minutes + 5000);
+let oneDayAgo = currentTime - (1000*60*60*24 + 5000);
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
@@ -143,6 +144,7 @@ function getTokenSymbol(address){
 function getTransactionReceipt(txhash){
     return new Promise<number>((resolve) => {
         web3.eth.getTransactionReceipt(txhash).then((tx)=>{
+            //console.log(tx.logs)
             resolve(tx.gasUsed);
         })
     })
@@ -169,6 +171,23 @@ function getReports(addr){
         getReportsForStrategy(addr).then((reports) => {
             for(let i=0;i<reports.length;i++){
                 if(parseInt(reports[i].timestamp) > timeCheckPoint){//Date.now()){
+                    // 1629786582
+                    // 1627318302000
+                    reports[i].strategyAddress = addr;
+                    txns.push(reports[i])
+                }
+            }
+            resolve(txns);
+        })
+    })
+}
+
+function getReportsPastDay(addr){
+    return new Promise((resolve) => {
+        let txns = [];
+        getReportsForStrategy(addr).then((reports) => {
+            for(let i=0;i<reports.length;i++){
+                if(parseInt(reports[i].timestamp) > oneDayAgo){//Date.now()){
                     // 1629786582
                     // 1627318302000
                     reports[i].strategyAddress = addr;
@@ -242,6 +261,7 @@ function formatDiscord(d: Harvest){
     let netProft = d.profit - d.loss;
     let precision = 4;
     message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol} ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
+    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}\n\n`;
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
 
     d.transactionHash
@@ -343,5 +363,95 @@ async function getStrategies(){
     return strats;
 }
 
-getStrategies();
+async function dailyReport(){
+    let results: Harvest[] = [];
+    let strats: string[] = await getAllStrategies();
+    let totalFeesUsd = 0;
+    let totalProfitsUsd = 0;
+    let strategiesHarvested = 0;
+    for(let idx=0;idx<strats.length;idx++){
+        let s = strats[idx];
+        let reports: any = await getReportsPastDay(s);
+        let strategyName;    
+        if(reports.length > 0){
+            strategyName = await getStrategyName(s);
+            let strategist = await getStrategist(s);
+            let vaultAddress = await getVaultAddress(s);
+            let vaultName = await getVaultName(vaultAddress);
+            let decimals: any = await getVaultDecimals(vaultAddress);
+            let tokenAddress = await getTokenAddress(s);
+            let tokenSymbol = await getTokenSymbol(tokenAddress);
+            let oraclePrice: number = await getOraclePrice(tokenAddress);
+            for(let i=0;i<reports.length;i++){
+                let result: Harvest = {};
+                strategiesHarvested++;
+                result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
+                result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                result.netProfit = result.profit - result.loss;
+                result.usdValue = oraclePrice * result.netProfit;
+                totalProfitsUsd += result.usdValue;
+                result.rawTimestamp = reports[i].results.currentReport.timestamp;
+                result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
+                result.strategyAddress = s;
+                result.strategyName = strategyName;
+                result.vaultAddress = String(vaultAddress);
+                result.vaultName = String(vaultName);
+                result.decimals = parseInt(decimals);
+                result.tokenSymbol = String(tokenSymbol);
+                result.transactionHash = reports[i].transactionHash;
+                result.strategist = String(strategist);
+                let txnDetails: TxnDetails = await getTransactionTo(result.transactionHash);
+                let to = txnDetails.to;
+                let wethPrice = await getWethPrice();
+                result.txnCost = (txnDetails.transactionCost / 1e18) * wethPrice;
+                totalFeesUsd += result.txnCost;
+                result.transactionTo = String(to);
+                result.keeperTriggered = checkIsKeeper(String(to));
+                result.multisigTriggered = checkIsMultisig(String(to));
+                result.strategistTriggered = s == String(to);
+                results.push(result);
+            }
+        }
+    }
+    console.log("-----")
+    console.log("TOTAL FEES USD",totalFeesUsd)
+    console.log("TOTAL PROFITS USD",totalProfitsUsd)
+    let d = new Date();
+    d.setHours(d.getHours()-15)
+    let dateString = d.
+        toLocaleString('en-us', {year: 'numeric', month: '2-digit', day: '2-digit'}).
+        replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
+    let message = `-- Daily report: ${dateString} --\n\n`;
+    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} Profit harvested: \n\n`
+    message += `👨‍🌾 ${strategiesHarvested} Strategies harvested\n\n`
+    message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees`
+    if(environment=="PROD"){
+        console.log(message)
+        let encoded_message = encodeURIComponent(message);
+        let url = `https://api.telegram.org/${tgBot}/sendMessage?chat_id=${tgChat}&text=${encoded_message}&parse_mode=markdown&disable_web_page_preview=true`
+        const res = await axios.post(url);
+        let params = {
+            content: "",
+            embeds: [{
+                "title":"New harvest",
+                "description": message
+            }]
+        }
+        const resp = await axios.post(discordUrl,params);
+    }
+    else{
+        console.log(message)
+    }
+}
 
+getStrategies();
+let d = new Date();
+console.log(d.getHours(), d.getMinutes())
+if(environment=="PROD"){
+    if(d.getHours() == 0 && d.getMinutes() < 15){
+        dailyReport()
+    }
+}
+else{
+    dailyReport()
+}
