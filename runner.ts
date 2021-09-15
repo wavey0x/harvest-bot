@@ -421,10 +421,10 @@ async function dailyReport(){
     let dateString = d.
         toLocaleString('en-us', {year: 'numeric', month: '2-digit', day: '2-digit'}).
         replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
-    let message = `-- Daily report: ${dateString} --\n\n`;
-    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} Profit harvested: \n\n`
-    message += `👨‍🌾 ${strategiesHarvested} Strategies harvested\n\n`
-    message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees`
+    let message = `${dateString} -- End of Day Report\n\n`;
+    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} in total profit\n\n`
+    message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees\n\n`
+    message += `👨‍🌾 ${strategiesHarvested} strategies harvested`
     if(environment=="PROD"){
         console.log(message)
         let encoded_message = encodeURIComponent(message);
@@ -446,9 +446,8 @@ async function dailyReport(){
 
 getStrategies();
 let d = new Date();
-console.log(d.getHours(), d.getMinutes())
 if(environment=="PROD"){
-    if(d.getHours() == 0 && d.getMinutes() < 15){
+    if(d.getHours() >= 0 && d.getMinutes() > 15){
         dailyReport()
     }
 }
