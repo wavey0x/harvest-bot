@@ -447,7 +447,7 @@ async function dailyReport(){
 getStrategies();
 let d = new Date();
 if(environment=="PROD"){
-    if(d.getHours() >= 0 && d.getMinutes() > 15){
+    if(d.getHours() == 0 && d.getMinutes() < 15){
         dailyReport()
     }
 }
