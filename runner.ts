@@ -16,6 +16,8 @@ const mins = process.env.MINUTES;
 let currentTime = Date.now();
 let minutes = parseInt(mins);
 let timeCheckPoint = currentTime - (1000*60*minutes + 5000);
+console.log("Started with current time:", currentTime);
+console.log("Checkpoint time:", timeCheckPoint);
 let oneDayAgo = currentTime - (1000*60*60*24 + 5000);
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
@@ -305,12 +307,25 @@ async function getStrategies(){
             let oraclePrice: number = await getOraclePrice(tokenAddress);
             for(let i=0;i<reports.length;i++){
                 let result: Harvest = {};
-                result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
-                result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
-                result.netProfit = result.profit - result.loss;
-                result.usdValue = oraclePrice * result.netProfit;
-                result.rawTimestamp = reports[i].results.currentReport.timestamp;
-                result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
+                try{
+                    result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
+                    result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    result.netProfit = result.profit - result.loss;
+                    result.usdValue = oraclePrice * result.netProfit;
+                    result.rawTimestamp = reports[i].results.currentReport.timestamp;
+                    result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
+                }
+                catch{
+                    let index = reports.length - 1;
+                    console.log("🚨 Handling error, strategy first harvest", )
+                    console.log(reports[index])
+                    result.profit = reports[index].profit;
+                    result.loss = reports[index].loss;
+                    result.netProfit = reports[index].profit - reports[index].loss;
+                    result.usdValue = oraclePrice * result.netProfit;
+                    result.rawTimestamp = reports[index].timestamp;
+                    result.timestamp = new Date(parseInt(reports[index].timestamp));
+                }
                 result.strategyAddress = s;
                 result.strategyName = strategyName;
                 result.vaultAddress = String(vaultAddress);
@@ -385,13 +400,26 @@ async function dailyReport(){
             for(let i=0;i<reports.length;i++){
                 let result: Harvest = {};
                 strategiesHarvested++;
-                result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals;
-                result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
-                result.netProfit = result.profit - result.loss;
-                result.usdValue = oraclePrice * result.netProfit;
-                totalProfitsUsd += result.usdValue;
-                result.rawTimestamp = reports[i].results.currentReport.timestamp;
-                result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
+                try{
+                    result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
+                    result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    result.netProfit = result.profit - result.loss;
+                    result.usdValue = oraclePrice * result.netProfit;
+                    totalProfitsUsd += result.usdValue;
+                    result.rawTimestamp = reports[i].results.currentReport.timestamp;
+                    result.timestamp = new Date(parseInt(reports[i].results.currentReport.timestamp));
+                }
+                catch{
+                    let index = reports.length - 1;
+                    console.log("🚨 Handling error, strategy first harvest", )
+                    console.log(reports[index])
+                    result.profit = 0;
+                    result.loss = 0;
+                    result.netProfit = 0;
+                    result.usdValue = 0;
+                    result.rawTimestamp = reports[index].timestamp;
+                    result.timestamp = new Date(parseInt(reports[index].timestamp));
+                }
                 result.strategyAddress = s;
                 result.strategyName = strategyName;
                 result.vaultAddress = String(vaultAddress);
