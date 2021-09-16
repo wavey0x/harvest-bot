@@ -172,9 +172,7 @@ function getReports(addr){
         let txns = [];
         getReportsForStrategy(addr).then((reports) => {
             for(let i=0;i<reports.length;i++){
-                if(parseInt(reports[i].timestamp) > timeCheckPoint){//Date.now()){
-                    // 1629786582
-                    // 1627318302000
+                if(parseInt(reports[i].timestamp) > timeCheckPoint){
                     reports[i].strategyAddress = addr;
                     txns.push(reports[i])
                 }
@@ -437,13 +435,11 @@ async function dailyReport(){
                 result.keeperTriggered = checkIsKeeper(String(to));
                 result.multisigTriggered = checkIsMultisig(String(to));
                 result.strategistTriggered = s == String(to);
+                console.log(strategiesHarvested, result.strategyAddress, result.strategyName, result.transactionHash);
                 results.push(result);
             }
         }
     }
-    console.log("-----")
-    console.log("TOTAL FEES USD",totalFeesUsd)
-    console.log("TOTAL PROFITS USD",totalProfitsUsd)
     let d = new Date();
     d.setHours(d.getHours()-15)
     let dateString = d.
@@ -472,13 +468,21 @@ async function dailyReport(){
     }
 }
 
-getStrategies();
-let d = new Date();
-if(environment=="PROD"){
-    if(d.getHours() == 0 && d.getMinutes() < 15){
-        dailyReport()
+async function run(){
+    console.log("Checking for harvests.");
+    await getStrategies();
+    let d = new Date();
+    if(environment=="PROD"){
+        if(d.getHours() == 0 && d.getMinutes() < 15){
+            console.log("Building daily report.");
+            await dailyReport();
+        }
+    }
+    else{
+        console.log("Building daily report.");
+        await dailyReport();
     }
 }
-else{
-    dailyReport()
-}
+
+run();
+
