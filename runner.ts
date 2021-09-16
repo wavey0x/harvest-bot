@@ -433,7 +433,7 @@ async function dailyReport(){
         let params = {
             content: "",
             embeds: [{
-                "title":"New harvest",
+                "title":"Daily Report",
                 "description": message
             }]
         }
