@@ -421,8 +421,8 @@ async function dailyReport(){
     let dateString = d.
         toLocaleString('en-us', {year: 'numeric', month: '2-digit', day: '2-digit'}).
         replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
-    let message = `${dateString} -- End of Day Report\n\n`;
-    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} in total profit\n\n`
+    let message = `📃 End of Day Report --- ${dateString} \n\n`;
+    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} harvested\n\n`
     message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees\n\n`
     message += `👨‍🌾 ${strategiesHarvested} strategies harvested`
     if(environment=="PROD"){
