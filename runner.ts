@@ -13,13 +13,18 @@ const environment = process.env.ENVIRONMENT;
 const tgChat = process.env.TELEGRAM_CHANNEL_ID;
 const tgBot = process.env.HARVEST_COLLECTOR_BOT;
 const mins = process.env.MINUTES;
-let currentTime = Date.now();
+const delay = process.env.DELAY_MINUTES; // give some buffer for subgraph to update
+
 let minutes = parseInt(mins);
-let timeCheckPoint = currentTime - (1000*60*minutes + 5000);
+let delayMinutes = parseInt(delay);
+let currentTime = Date.now();
+let currentTimeMinusDelay = currentTime - ((1000*60)*(delayMinutes));
+let timeCheckPoint = currentTimeMinusDelay - ((1000*60)*(minutes + delayMinutes) + 5000);
 let oneDayAgo = currentTime - (1000*60*60*24 + 5000);
 console.log("Started with current time:", new Date(currentTime));
+console.log("Current time minus delay:", new Date(currentTimeMinusDelay));
 console.log("Checkpoint time:", new Date(timeCheckPoint));
-console.log("Checkpoint one day ago:", new Date(timeCheckPoint));
+console.log("Checkpoint one day ago:", new Date(oneDayAgo));
 let strategiesHelperAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/strategieshelper.json')));
 let vaultAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2vault.json')));
 let strategyAbi = JSON.parse(fs.readFileSync(path.normalize(path.dirname(require.main.filename)+'/contract_abis/v2strategy.json')));
@@ -54,13 +59,17 @@ interface Harvest {
     keeperTriggered?: boolean;
     multisigTriggered?: boolean;
     strategistTriggered?: boolean;
-    txnCost?: number
+    txnCost?: number;
+    multiHarvestTxn?: boolean;
 }
 
 interface TxnDetails {
     to?: string;
     transactionCost?: number;
 }
+
+let checkpointTxns: string[] = [];
+let dailyTxns: string[];
 
 function getStrategyName(address){
     return new Promise((resolve) => {
@@ -173,7 +182,7 @@ function getReports(addr){
         let txns = [];
         getReportsForStrategy(addr).then((reports) => {
             for(let i=0;i<reports.length;i++){
-                if(parseInt(reports[i].timestamp) > timeCheckPoint){
+                if(parseInt(reports[i].timestamp) > timeCheckPoint && parseInt(reports[i].timestamp) <= currentTimeMinusDelay){
                     reports[i].strategyAddress = addr;
                     txns.push(reports[i])
                 }
@@ -188,9 +197,7 @@ function getReportsPastDay(addr){
         let txns = [];
         getReportsForStrategy(addr).then((reports) => {
             for(let i=0;i<reports.length;i++){
-                if(parseInt(reports[i].timestamp) > oneDayAgo){//Date.now()){
-                    // 1629786582
-                    // 1627318302000
+                if(parseInt(reports[i].timestamp) > oneDayAgo){
                     reports[i].strategyAddress = addr;
                     txns.push(reports[i])
                 }
@@ -207,7 +214,7 @@ function getAllStrategies() {
             for(let i=0;i<strats.length; i++){
                 strategies.push(strats[i])
             }
-            if(!strategies.includes(yvboostStrategy)){
+            if(strategies && !strategies.includes(yvboostStrategy)){
                 strategies.push(yvboostStrategy);
             }
             resolve(strategies as string[]);
@@ -262,8 +269,11 @@ function formatDiscord(d: Harvest){
     let netProft = d.profit - d.loss;
     let precision = 4;
     message += `💰 Net profit: ${commaNumber(netProft.toFixed(precision))} ${d.tokenSymbol} ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
-    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}\n\n`;
+    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2)) + d.multiHarvestTxn ? "*" : ""}\n\n`;
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
+    if(d.multiHarvestTxn){
+        message += "\n\n*transaction part of a single txn with multiple harvests."
+    }
 
     d.transactionHash
     return message;
@@ -332,6 +342,20 @@ async function getStrategies(){
                 result.decimals = parseInt(decimals);
                 result.tokenSymbol = String(tokenSymbol);
                 result.transactionHash = reports[i].transactionHash;
+                if(!checkpointTxns.includes(result.transactionHash)){
+                    checkpointTxns.push(result.transactionHash);
+                    result.multiHarvestTxn = false;
+                }
+                else{
+                    // Found a duplicate hash. Let's also look for any previous result and mark it as multiharvest
+                    result.multiHarvestTxn = true;
+                    for(let r=0; r<results.length; r++){
+                        if(results[r].transactionHash == result.transactionHash){
+                            results[r].multiHarvestTxn = true;
+                        }
+                    }
+                    
+                }
                 result.strategist = String(strategist);
                 let txnDetails: TxnDetails = await getTransactionTo(result.transactionHash);
                 let to = txnDetails.to;
@@ -380,6 +404,7 @@ async function getStrategies(){
 async function dailyReport(){
     let results: Harvest[] = [];
     let strats: string[] = await getAllStrategies();
+    checkpointTxns = [];
     let totalFeesUsd = 0;
     let totalProfitsUsd = 0;
     let strategiesHarvested = 0;
@@ -431,14 +456,34 @@ async function dailyReport(){
                 let to = txnDetails.to;
                 let wethPrice = await getWethPrice();
                 result.txnCost = (txnDetails.transactionCost / 1e18) * wethPrice;
-                totalFeesUsd += result.txnCost;
+                if(!checkpointTxns.includes(result.transactionHash)){
+                    totalFeesUsd = totalFeesUsd + result.txnCost;
+                    checkpointTxns.push(result.transactionHash);
+                    result.multiHarvestTxn = false;
+                }
+                else{
+                    // Found a duplicate hash. Let's also look for any previous result and mark it as multiharvest
+                    result.multiHarvestTxn = true;
+                    for(let r=0; r<results.length; r++){
+                        if(results[r].transactionHash == result.transactionHash){
+                            results[r].multiHarvestTxn = true;
+                        }
+                    }
+                    
+                }
                 result.transactionTo = String(to);
                 result.keeperTriggered = checkIsKeeper(String(to));
                 result.multisigTriggered = checkIsMultisig(String(to));
                 result.strategistTriggered = s == String(to);
-                console.log(strategiesHarvested, result.strategyAddress, result.strategyName, result.transactionHash);
+                
                 results.push(result);
             }
+        }
+    }
+    if(results.length>0){
+        results = _.sortBy(results, ['rawTimestamp', 'transactionHash']);
+        for(let i=0;i<results.length;i++){
+            console.log(i, results[i].timestamp, results[i].strategyAddress, results[i].strategyName, results[i].transactionHash);
         }
     }
     let d = new Date();
@@ -447,9 +492,9 @@ async function dailyReport(){
         toLocaleString('en-us', {year: 'numeric', month: '2-digit', day: '2-digit'}).
         replace(/(\d+)\/(\d+)\/(\d+)/, '$3-$1-$2');
     let message = `📃 End of Day Report --- ${dateString} \n\n`;
-    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} harvested\n\n`
-    message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees\n\n`
-    message += `👨‍🌾 ${strategiesHarvested} strategies harvested`
+    message += `💰 $${commaNumber(totalProfitsUsd.toFixed(2))} harvested\n\n`;
+    message += `💸 $${commaNumber(totalFeesUsd.toFixed(2))} in transaction fees\n\n`;
+    message += `👨‍🌾 ${strategiesHarvested} strategies harvested`;
     if(environment=="PROD"){
         console.log(message)
         let encoded_message = encodeURIComponent(message);
