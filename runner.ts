@@ -19,7 +19,7 @@ let minutes = parseInt(mins);
 let delayMinutes = parseInt(delay);
 let currentTime = Date.now();
 let currentTimeMinusDelay = currentTime - ((1000*60)*(delayMinutes));
-let timeCheckPoint = currentTimeMinusDelay - ((1000*60)*(minutes + delayMinutes) + 5000);
+let timeCheckPoint = currentTimeMinusDelay - ((1000*60)*(minutes) + 5000);
 let oneDayAgo = currentTime - (1000*60*60*24 + 5000);
 console.log("Started with current time:", new Date(currentTime));
 console.log("Current time minus delay:", new Date(currentTimeMinusDelay));
