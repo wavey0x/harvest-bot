@@ -243,7 +243,7 @@ function formatTelegram(d: Harvest){
     let precision = 4;
     message += `💰 Net profit: ${commaNumber(netProfit.toFixed(precision))} ${d.tokenSymbol} ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
     // message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}\n\n`; // ($${commaNumber(d.usdValue.toFixed(2))})\n\n`;
-    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}` + `${d.multiHarvestTxn ? "▫" : ""} \n\n`;
+    message += `💸 Transaction Cost: $${commaNumber(d.txnCost.toFixed(2))}` + `${d.multiHarvestTxn ? "" : ""} \n\n`;
     message += `🔗 [View on Etherscan](https://etherscan.io/tx/${d.transactionHash})`;
     if(d.multiHarvestTxn){
         message += "\n\n_part of a single txn with multiple harvests_"
