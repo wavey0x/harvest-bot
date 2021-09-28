@@ -320,8 +320,10 @@ async function getStrategies(){
             for(let i=0;i<reports.length;i++){
                 let result: Harvest = {};
                 try{
-                    result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
-                    result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    // result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
+                    // result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    result.profit = parseInt(reports[i].results.currentReport.gain) / 10**decimals;
+                    result.loss = parseInt(reports[i].results.currentReport.loss) / 10**decimals;
                     result.netProfit = result.profit - result.loss;
                     result.usdValue = oraclePrice * result.netProfit;
                     result.rawTimestamp = reports[i].results.currentReport.timestamp;
@@ -434,8 +436,10 @@ async function dailyReport(){
                 let result: Harvest = {};
                 strategiesHarvested++;
                 try{
-                    result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
-                    result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    // result.profit = (parseInt(reports[i].results.currentReport.totalGain) - parseInt(reports[i].results.previousReport.totalGain))/10**decimals
+                    // result.loss = (parseInt(reports[i].results.currentReport.totalLoss) - parseInt(reports[i].results.previousReport.totalLoss))/10**decimals;
+                    result.profit = parseInt(reports[i].results.currentReport.gain) / 10**decimals;
+                    result.loss = parseInt(reports[i].results.currentReport.loss) / 10**decimals;
                     result.netProfit = result.profit - result.loss;
                     result.usdValue = oraclePrice * result.netProfit;
                     totalProfitsUsd += result.usdValue;
@@ -524,7 +528,7 @@ async function dailyReport(){
 }
 
 async function run(){
-    console.log("Checking for harvests.");
+    console.log("Checking for harvests...");
     await getStrategies();
     let d = new Date();
     if(environment=="PROD"){
