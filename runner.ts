@@ -3,7 +3,6 @@ import {getReportsForStrategy} from './reports';
 const Web3 = require('web3');
 const commaNumber = require('comma-number');
 const _ = require('lodash');
-const request = require('request');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();

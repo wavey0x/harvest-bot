@@ -13,3 +13,17 @@
 
 ## Run
 - run with `ts-node runner.ts`
+
+# Docker
+
+## Build the Docker container
+
+```bash
+> docker build -t harvest-bot .
+```
+
+## Run the harvest bot in the Docker container
+
+```bash
+> docker run --platform linux/x86_64 -e ENVIRONMENT=PROD -e DELAY_MINUTES=60 -e MINUTES=60 -e TELEGRAM_CHANNEL_ID="@yfitestchannel" -e HARVEST_COLLECTOR_BOT="bot1111111111:AAGf0rbw5Xfoo47D2M0VRCk1CdQ-81LPKHck" -e DISCORD_SECRET="111111111111/xjzzYp32aYrezyHmnojLy8SKqcvR9123r1q9uVJraO1_8is9SucE63SQ-RNjTegQ2p" -e INFURA_NODE="https://mainnet.infura.io/v3/cab1233Fffgbjk3n5dbjsoqz3qqn4" harvest-bot ts-node runner.ts
+```
