@@ -333,7 +333,7 @@ async function getStrategies(){
                     console.log(reports[index])
                     result.profit = reports[index].profit / 10**decimals;
                     result.loss = reports[index].loss / 10**decimals;
-                    result.netProfit = reports[index].profit - reports[index].loss;
+                    result.netProfit = result.profit - result.loss;
                     result.usdValue = oraclePrice * result.netProfit;
                     result.rawTimestamp = reports[index].timestamp;
                     result.timestamp = new Date(parseInt(reports[index].timestamp));
@@ -449,7 +449,7 @@ async function dailyReport(){
                     try{
                         result.profit = reports[index].profit / 10**decimals;
                         result.loss = reports[index].loss / 10**decimals;
-                        result.netProfit = reports[index].profit - reports[index].loss;
+                        result.netProfit = result.profit - result.loss;
                         result.usdValue = oraclePrice * result.netProfit;
                         result.rawTimestamp = reports[index].timestamp;
                         result.timestamp = new Date(parseInt(reports[index].timestamp));
